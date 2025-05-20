@@ -6,21 +6,24 @@ given title. It stores configuration and OAuth tokens under
 
 ## Setup
 
-The project uses [uv](https://github.com/astral-sh/uv) for dependency
-management. After installing `uv` on your system run:
+### Install dependencies
 
-```bash
+```
 uv venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
+uv sync
 ```
+
+### Get OAuth client secret
+
+Create a Google Cloud project and create a OAuth client secret with permissions `.../auth/calendar.readonly` and `.../auth/calendar.events.readonly`.
 
 ## Usage
 
 1. Run the script:
 
    ```bash
-   python gcal_hours_aggregator.py
+   python3 gcal_hours_aggregator.py
    ```
 
 2. Follow the interactive prompts:

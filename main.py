@@ -14,7 +14,8 @@ except Exception:
     build = InstalledAppFlow = Request = None  # type: ignore
 
 CONFIG_DIR = os.path.expanduser("~/.gcal-hours-aggregator")
-CREDENTIALS_FILE = os.path.join(CONFIG_DIR, "credentials.json")
+OAUTH_DIR = ("./oauth2")
+CREDENTIALS_FILE = os.path.join(CONFIG_DIR, "client_secret.json")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
