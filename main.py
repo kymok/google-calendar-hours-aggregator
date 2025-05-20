@@ -15,7 +15,7 @@ except Exception:
 
 CONFIG_DIR = os.path.expanduser("~/.gcal-hours-aggregator")
 OAUTH_DIR = ("./oauth2")
-CREDENTIALS_FILE = os.path.join(CONFIG_DIR, "client_secret.json")
+CREDENTIALS_FILE = os.path.join(OAUTH_DIR, "client_secret.json")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
