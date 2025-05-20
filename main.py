@@ -195,44 +195,128 @@ def select_month(default: datetime.date) -> datetime.date:
     return curses.wrapper(menu)
 
 
-def main():
+def main(use_defaults: bool = False):
     config = load_config()
-    account = input(f"Google account name ({config.get('account', '')}): ") or config.get('account')
-    if not account:
-        print('Account name is required.')
-        return
+    
+    # Check if we have all required defaults when --default is used
+    if use_defaults:
+        account = config.get('account')
+        if not account:
+            print('No default account found, falling back to interactive mode.')
+            use_defaults = False
+    # Get account
+    if use_defaults:
+        account = config['account']  # We already checked it exists
+    else:
+        account = input(f"Google account name ({config.get('account', '')}): ") or config.get('account')
+        if not account:
+            print('Account name is required.')
+            return
     config['account'] = account
     service = authenticate(account)
 
     # Select calendar
     calendar_list = service.calendarList().list().execute()
-    calendars = [item['summary'] for item in calendar_list.get('items', [])]
-    default_summary = None
-    if 'calendar' in config:
-        for item in calendar_list.get('items', []):
-            if item['id'] == config['calendar']:
-                default_summary = item['summary']
-                break
-    cal_summary = select_from_list(calendars, "Select calendar:", default_summary)
-    calendar_id = next(item['id'] for item in calendar_list['items'] if item['summary'] == cal_summary)
-    config['calendar'] = calendar_id
-    print(f"Calendar: {cal_summary}")
+    calendar_id = None
+    if use_defaults:
+        if 'calendar' not in config:
+            print('No default calendar found, falling back to interactive mode.')
+            use_defaults = False
+        else:
+            calendar_id = config['calendar']
+            cal_summary = next((item['summary'] for item in calendar_list['items'] 
+                              if item['id'] == calendar_id), None)
+            if not cal_summary:
+                print('Default calendar not found, falling back to interactive mode.')
+                use_defaults = False
+                calendar_id = None
+            else:
+                print(f"Calendar: {cal_summary}")
+
+    if not use_defaults or calendar_id is None:
+        calendars = [item['summary'] for item in calendar_list.get('items', [])]
+        default_summary = None
+        if 'calendar' in config:
+            for item in calendar_list.get('items', []):
+                if item['id'] == config['calendar']:
+                    default_summary = item['summary']
+                    break
+        cal_summary = select_from_list(calendars, "Select calendar:", default_summary)
+        calendar_id = next(item['id'] for item in calendar_list['items'] if item['summary'] == cal_summary)
+        config['calendar'] = calendar_id
+        print(f"Calendar: {cal_summary}")
 
     # Select month
     today = datetime.date.today().replace(day=1)
-    default_month = today
-    if 'month' in config:
+    month = None
+    if use_defaults:
         try:
-            default_month = datetime.datetime.strptime(config['month'], '%Y-%m').date()
+            month = datetime.datetime.strptime(config['month'], '%Y-%m').date()
+            print(f"Month: {month.strftime('%Y-%m')}")
+        except (KeyError, ValueError):
+            print('No valid default month found, falling back to interactive mode.')
+            use_defaults = False
+
+    if not use_defaults or month is None:
+        default_month = today
+        if 'month' in config:
+            try:
+                default_month = datetime.datetime.strptime(config['month'], '%Y-%m').date()
+            except ValueError:
+                default_month = today
+        month = select_month(default_month)
+        config['month'] = month.strftime('%Y-%m')
+        print(f"Month: {month.strftime('%Y-%m')}")
+        save_config(config)
+
+    # Get title and rate
+    title_rates = config.get('title_rates', {})
+    title_filter = None
+    hourly_rate = None
+    
+    if use_defaults:
+        title_filter = config.get('last_title')
+        if not title_filter:
+            print('No default title found, falling back to interactive mode.')
+            use_defaults = False
+        else:
+            rate_str = title_rates.get(title_filter)
+            if not rate_str:
+                print('No default rate found for this title, falling back to interactive mode.')
+                use_defaults = False
+            else:
+                try:
+                    hourly_rate = float(rate_str)
+                    print(f'Title: {title_filter}')
+                    print(f'Rate: {f"{float(rate_str):.2f}"}')
+                except ValueError:
+                    print('Invalid default rate found, falling back to interactive mode.')
+                    use_defaults = False
+                    title_filter = None
+
+    if not use_defaults or title_filter is None or hourly_rate is None:
+        # Get title filter with default from last use
+        default_title = config.get('last_title', '')
+        title_filter = input(f'Event title contains ({default_title}): ') or default_title
+        if not title_filter:
+            print('Title filter is required.')
+            return
+        config['last_title'] = title_filter
+
+        # Get rate for this title
+        rate_str = title_rates.get(title_filter, '')
+        rate_str = input(f'Rate for "{title_filter}" ({f"{float(rate_str):.2f}" if rate_str else ""}): ') or rate_str
+
+        try:
+            hourly_rate = float(rate_str)
         except ValueError:
-            default_month = today
-    month = select_month(default_month)
-    config['month'] = month.strftime('%Y-%m')
-    print(f"Month: {month.strftime('%Y-%m')}")
-
-    save_config(config)
-
-    title_filter = input('Event title contains: ')
+            print('Invalid hourly rate. Please enter a number.')
+            return
+        
+        # Save rate for this title
+        title_rates[title_filter] = rate_str
+        config['title_rates'] = title_rates
+        save_config(config)
 
     start_date = month
     end_date = add_month(month, 1)
@@ -249,12 +333,16 @@ def main():
     chunks = aggregate_hours(events, title_filter)
     total = total_hours(chunks)
     
-    
+    print('----')
     print('year,month,day,start,end,hours')
     for c in chunks:
         print(f"{c.year},{c.month:02d},{c.day:02d},{c.start:g},{c.end:g},{c.hours:g}")
     print('----')
     print(f'Total Hours: {total:.2f} hours')
+    billing_amount = total * hourly_rate
+    print(f'Billing Amount: {billing_amount:,.2f}')
 
 if __name__ == '__main__':
-    main()
+    import sys
+    use_defaults = '--default' in sys.argv
+    main(use_defaults)
