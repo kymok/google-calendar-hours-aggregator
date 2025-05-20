@@ -1,5 +1,5 @@
 import datetime
-from gcal_hours_aggregator import split_event_into_days, aggregate_hours, EventChunk
+from main import split_event_into_days, aggregate_hours, EventChunk
 
 
 def test_split_single_day():

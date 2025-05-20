@@ -135,14 +135,24 @@ def select_from_list(options: List[str], title: str, default: Optional[str] = No
     import curses
 
     def menu(stdscr):
+        # カラー設定の初期化
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, -1)  # 通常テキスト用
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # 選択項目用
+
         curses.curs_set(0)
         pos = options.index(default) if default in options else 0
         while True:
             stdscr.clear()
-            stdscr.addstr(0, 0, title)
+            stdscr.addstr(0, 0, title, curses.color_pair(1))
             for idx, opt in enumerate(options):
-                prefix = '> ' if idx == pos else '  '
-                stdscr.addstr(idx + 2, 0, prefix + opt)
+                if idx == pos:
+                    # 選択中の項目は反転表示
+                    stdscr.addstr(idx + 2, 0, "> " + opt, curses.color_pair(2))
+                else:
+                    # 非選択項目は通常表示
+                    stdscr.addstr(idx + 2, 0, "  " + opt, curses.color_pair(1))
             key = stdscr.getch()
             if key == curses.KEY_UP and pos > 0:
                 pos -= 1
@@ -162,12 +172,18 @@ def select_month(default: datetime.date) -> datetime.date:
         return datetime.date(year, month, 1)
 
     def menu(stdscr):
+        # カラー設定の初期化
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, -1)  # 通常テキスト用
+        curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)  # 選択項目用
+
         curses.curs_set(0)
         current = default
         while True:
             stdscr.clear()
-            stdscr.addstr(0, 0, "Select month (LEFT/RIGHT to change, ENTER to confirm):")
-            stdscr.addstr(1, 0, current.strftime('%Y-%m'))
+            stdscr.addstr(0, 0, "Select month (LEFT/RIGHT to change, ENTER to confirm):", curses.color_pair(1))
+            stdscr.addstr(1, 0, current.strftime('%Y-%m'), curses.color_pair(2))
             key = stdscr.getch()
             if key == curses.KEY_LEFT:
                 current = inc_month(current, -1)
@@ -199,6 +215,7 @@ def main():
     cal_summary = select_from_list(calendars, "Select calendar:", default_summary)
     calendar_id = next(item['id'] for item in calendar_list['items'] if item['summary'] == cal_summary)
     config['calendar'] = calendar_id
+    print(f"Calendar: {cal_summary}")
 
     # Select month
     today = datetime.date.today().replace(day=1)
@@ -210,6 +227,7 @@ def main():
             default_month = today
     month = select_month(default_month)
     config['month'] = month.strftime('%Y-%m')
+    print(f"Month: {month.strftime('%Y-%m')}")
 
     save_config(config)
 
@@ -229,12 +247,13 @@ def main():
 
     chunks = aggregate_hours(events, title_filter)
     total = total_hours(chunks)
-    print(f'Total Hours: {total:.2f} hours')
-    print('----')
+    
+    
     print('year,month,day,start,end,hours')
     for c in chunks:
         print(f"{c.year},{c.month:02d},{c.day:02d},{c.start:g},{c.end:g},{c.hours:g}")
+    print('----')
+    print(f'Total Hours: {total:.2f} hours')
 
 if __name__ == '__main__':
     main()
-
