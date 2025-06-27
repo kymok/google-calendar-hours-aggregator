@@ -3,8 +3,13 @@ import os
 import json
 import datetime
 import pickle
+import zoneinfo
 from dataclasses import dataclass
 from typing import List, Optional
+
+def get_local_timezone():
+    """Get the system's local timezone."""
+    return datetime.datetime.now().astimezone().tzinfo
 
 try:
     from googleapiclient.discovery import build
@@ -112,10 +117,12 @@ def aggregate_hours(events: List[dict], title_filter: str) -> List[EventChunk]:
         summary = ev.get('summary', '')
         if title_filter not in summary:
             continue
-        start = ev['start'].get('dateTime') or ev['start'].get('date') + 'T00:00:00Z'
-        end = ev['end'].get('dateTime') or ev['end'].get('date') + 'T00:00:00Z'
-        start_dt = datetime.datetime.fromisoformat(start.replace('Z', '+00:00'))
-        end_dt = datetime.datetime.fromisoformat(end.replace('Z', '+00:00'))
+        start = ev['start'].get('dateTime') or ev['start'].get('date') + 'T00:00:00'
+        end = ev['end'].get('dateTime') or ev['end'].get('date') + 'T00:00:00'
+        # Convert to local timezone
+        local_tz = get_local_timezone()
+        start_dt = datetime.datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone(local_tz)
+        end_dt = datetime.datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone(local_tz)
         chunks.extend(split_event_into_days(start_dt, end_dt))
     return chunks
 
@@ -323,8 +330,8 @@ def main(use_defaults: bool = False):
 
     events_result = service.events().list(
         calendarId=calendar_id,
-        timeMin=start_date.isoformat() + 'T00:00:00Z',
-        timeMax=end_date.isoformat() + 'T00:00:00Z',
+        timeMin=datetime.datetime.combine(start_date, datetime.time.min, tzinfo=get_local_timezone()).isoformat(),
+        timeMax=datetime.datetime.combine(end_date, datetime.time.min, tzinfo=get_local_timezone()).isoformat(),
         singleEvents=True,
         orderBy='startTime'
     ).execute()
