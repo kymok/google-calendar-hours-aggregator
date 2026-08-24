@@ -32,6 +32,7 @@ class EventChunk:
     start: float
     end: float
     hours: float
+    category: str = ''
 
 def ensure_config_dir():
     if not os.path.exists(CONFIG_DIR):
@@ -113,9 +114,11 @@ def split_event_into_days(start: datetime.datetime, end: datetime.datetime) -> L
 
 def aggregate_hours(events: List[dict], title_filter: str) -> List[EventChunk]:
     chunks: List[EventChunk] = []
+    filter_parts = title_filter.split('.')
     for ev in events:
         summary = ev.get('summary', '')
-        if title_filter not in summary:
+        category_parts = summary.split('.')
+        if category_parts[:len(filter_parts)] != filter_parts:
             continue
         start = ev['start'].get('dateTime') or ev['start'].get('date') + 'T00:00:00'
         end = ev['end'].get('dateTime') or ev['end'].get('date') + 'T00:00:00'
@@ -123,12 +126,50 @@ def aggregate_hours(events: List[dict], title_filter: str) -> List[EventChunk]:
         local_tz = get_local_timezone()
         start_dt = datetime.datetime.fromisoformat(start.replace('Z', '+00:00')).astimezone(local_tz)
         end_dt = datetime.datetime.fromisoformat(end.replace('Z', '+00:00')).astimezone(local_tz)
-        chunks.extend(split_event_into_days(start_dt, end_dt))
+        event_chunks = split_event_into_days(start_dt, end_dt)
+        for chunk in event_chunks:
+            chunk.category = summary
+        chunks.extend(event_chunks)
     return chunks
 
 
 def total_hours(chunks: List[EventChunk]) -> float:
     return sum(c.hours for c in chunks)
+
+
+def category_subtotals(chunks: List[EventChunk]) -> dict[str, float]:
+    subtotals: dict[str, float] = {}
+    for chunk in chunks:
+        parts = chunk.category.split('.')
+        for depth in range(1, len(parts) + 1):
+            category = '.'.join(parts[:depth])
+            subtotals[category] = subtotals.get(category, 0) + chunk.hours
+    return subtotals
+
+
+def category_tree_lines(subtotals: dict[str, float]) -> List[str]:
+    tree = {}
+    for category in subtotals:
+        branch = tree
+        for part in category.split('.'):
+            branch = branch.setdefault(part, {})
+
+    lines: List[str] = []
+
+    def append_lines(branch, prefix: str = '', parent: str = ''):
+        items = [
+            (f'{parent}.{part}' if parent else part, children)
+            for part, children in branch.items()
+        ]
+        items.sort(key=lambda item: (-subtotals[item[0]], item[0]))
+        for index, (category, children) in enumerate(items):
+            is_last = index == len(items) - 1
+            connector = '└──' if is_last else '├──'
+            lines.append(f'{prefix}{connector} {category},{subtotals[category]:g}')
+            append_lines(children, prefix + ('    ' if is_last else '│   '), category)
+
+    append_lines(tree)
+    return lines
 
 
 def add_month(date: datetime.date, delta: int) -> datetime.date:
@@ -276,7 +317,7 @@ def main(use_defaults: bool = False):
         print(f"Month: {month.strftime('%Y-%m')}")
         save_config(config)
 
-    # Get title and rate
+    # Get category and rate
     title_rates = config.get('title_rates', {})
     title_filter = None
     hourly_rate = None
@@ -284,17 +325,17 @@ def main(use_defaults: bool = False):
     if use_defaults:
         title_filter = config.get('last_title')
         if not title_filter:
-            print('No default title found, falling back to interactive mode.')
+            print('No default category found, falling back to interactive mode.')
             use_defaults = False
         else:
             rate_str = title_rates.get(title_filter)
             if not rate_str:
-                print('No default rate found for this title, falling back to interactive mode.')
+                print('No default rate found for this category, falling back to interactive mode.')
                 use_defaults = False
             else:
                 try:
                     hourly_rate = float(rate_str)
-                    print(f'Title: {title_filter}')
+                    print(f'Category: {title_filter}')
                     print(f'Rate: {f"{float(rate_str):.2f}"}')
                 except ValueError:
                     print('Invalid default rate found, falling back to interactive mode.')
@@ -302,15 +343,15 @@ def main(use_defaults: bool = False):
                     title_filter = None
 
     if not use_defaults or title_filter is None or hourly_rate is None:
-        # Get title filter with default from last use
+        # Get category filter with default from last use
         default_title = config.get('last_title', '')
-        title_filter = input(f'Event title contains ({default_title}): ') or default_title
+        title_filter = input(f'Event category ({default_title}): ') or default_title
         if not title_filter:
-            print('Title filter is required.')
+            print('Category filter is required.')
             return
         config['last_title'] = title_filter
 
-        # Get rate for this title
+        # Get rate for this category
         rate_str = title_rates.get(title_filter, '')
         rate_str = input(f'Rate for "{title_filter}" ({f"{float(rate_str):.2f}" if rate_str else ""}): ') or rate_str
 
@@ -320,7 +361,7 @@ def main(use_defaults: bool = False):
             print('Invalid hourly rate. Please enter a number.')
             return
         
-        # Save rate for this title
+        # Save rate for this category
         title_rates[title_filter] = rate_str
         config['title_rates'] = title_rates
         save_config(config)
@@ -339,11 +380,16 @@ def main(use_defaults: bool = False):
 
     chunks = aggregate_hours(events, title_filter)
     total = total_hours(chunks)
+    subtotals = category_subtotals(chunks)
     
     print('----')
     print('year,month,day,start,end,hours')
     for c in chunks:
         print(f"{c.year},{c.month:02d},{c.day:02d},{c.start:g},{c.end:g},{c.hours:g}")
+    print('----')
+    print('category,hours')
+    for line in category_tree_lines(subtotals):
+        print(line)
     print('----')
     print(f'Total Hours: {total:.2f} hours')
     billing_amount = total * hourly_rate
