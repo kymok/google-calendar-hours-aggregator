@@ -1,5 +1,12 @@
 import datetime
-from main import split_event_into_days, aggregate_hours, EventChunk, get_local_timezone
+from main import (
+    EventChunk,
+    aggregate_hours,
+    category_subtotals,
+    category_tree_lines,
+    get_local_timezone,
+    split_event_into_days,
+)
 
 
 def test_split_single_day():
@@ -23,16 +30,41 @@ def test_split_multi_day():
 def test_aggregate_hours():
     events = [
         {
-            'summary': 'Work',
+            'summary': 'ps.cp.work',
             'start': {'dateTime': '2025-05-01T18:00:00+09:00'},
             'end': {'dateTime': '2025-05-01T19:30:00+09:00'},
         },
         {
-            'summary': 'Play',
+            'summary': 'ps.cp.mtg',
             'start': {'dateTime': '2025-05-01T20:00:00+09:00'},
             'end': {'dateTime': '2025-05-01T21:00:00+09:00'},
-        }
+        },
+        {
+            'summary': 'pscp',
+            'start': {'dateTime': '2025-05-01T21:00:00+09:00'},
+            'end': {'dateTime': '2025-05-01T22:00:00+09:00'},
+        },
+        {
+            'summary': 'ps.cpa',
+            'start': {'dateTime': '2025-05-01T22:00:00+09:00'},
+            'end': {'dateTime': '2025-05-01T23:00:00+09:00'},
+        },
     ]
-    chunks = aggregate_hours(events, 'Work')
-    assert len(chunks) == 1
-    assert chunks[0].hours == 1.5
+    chunks = aggregate_hours(events, 'ps.cp')
+
+    assert [(chunk.category, chunk.hours) for chunk in chunks] == [
+        ('ps.cp.work', 1.5),
+        ('ps.cp.mtg', 1),
+    ]
+    assert category_subtotals(chunks) == {
+        'ps': 2.5,
+        'ps.cp': 2.5,
+        'ps.cp.work': 1.5,
+        'ps.cp.mtg': 1,
+    }
+    assert category_tree_lines(category_subtotals(chunks)) == [
+        '└── ps,2.5',
+        '    └── ps.cp,2.5',
+        '        ├── ps.cp.work,1.5',
+        '        └── ps.cp.mtg,1',
+    ]

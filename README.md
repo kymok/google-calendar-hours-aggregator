@@ -1,7 +1,7 @@
 # google-calendar-hours-aggregator
 
-Command line tool to aggregate hours from Google Calendar events matching a
-given title. It stores configuration and OAuth tokens under
+Command line tool to aggregate hours from dot-separated Google Calendar event
+categories. It stores configuration and OAuth tokens under
 `~/.gcal-hours-aggregator`.
 
 ## Setup
@@ -30,9 +30,19 @@ Create a Google Cloud project and create a OAuth client secret with permissions 
    - Enter your Google account name.
    - Select a calendar using the arrow keys.
    - Choose the month to aggregate.
-   - Provide a string that should be contained in the event title.
+   - Provide a category to aggregate. For example, `ps.cp` matches
+     `ps.cp.work` and `ps.cp.mtg`, but not `pscp` or `ps.cpa`.
 
-3. The script prints the total hours and a CSV table of each event chunk.
+3. The script prints each event chunk, the subtotal for every category level,
+   and the total hours. For example, events in `ps.cp.mtg` and `ps.cp.work`
+   produce the following subtotal tree:
+
+   ```text
+   └── ps,2.5
+       └── ps.cp,2.5
+           ├── ps.cp.work,1.5
+           └── ps.cp.mtg,1
+   ```
 
 ## Testing
 
