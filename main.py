@@ -15,6 +15,8 @@ try:
     from googleapiclient.discovery import build
     from google_auth_oauthlib.flow import InstalledAppFlow
     from google.auth.transport.requests import Request
+    from google_auth_httplib2 import AuthorizedHttp
+    from calendar_transport import CalendarHttp
 except Exception:
     build = InstalledAppFlow = Request = None  # type: ignore
 
@@ -76,7 +78,7 @@ def authenticate(account: str):
             pickle.dump(creds, token)
     if build is None:
         raise RuntimeError("Google API libraries are not available")
-    service = build('calendar', 'v3', credentials=creds)
+    service = build('calendar', 'v3', http=AuthorizedHttp(creds, http=CalendarHttp(timeout=60)))
     return service
 
 
