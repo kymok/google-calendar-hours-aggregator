@@ -131,6 +131,7 @@ dependencies = [
     { name = "google-api-python-client" },
     { name = "google-auth-httplib2" },
     { name = "google-auth-oauthlib" },
+    { name = "httplib2" },
     { name = "pytest" },
 ]
 
@@ -139,6 +140,7 @@ requires-dist = [
     { name = "google-api-python-client", specifier = ">=2.169.0" },
     { name = "google-auth-httplib2", specifier = ">=0.2.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.2.2" },
+    { name = "httplib2", specifier = ">=0.22.0" },
     { name = "pytest", specifier = ">=8.3.5" },
 ]
 
